@@ -26,13 +26,45 @@ contract FlightSuretyApp {
 
     address private contractOwner;          // Account used to deploy contract
 
+    //<--AIRLINES-->
+    struct Airline{
+      bytes32 name;
+      bool isRegistered;
+      bool isAuthorized;
+    }
+    mapping(uint256 => Airline) airlines;
+
+    //<--FLIGHTS-->
     struct Flight {
         bool isRegistered;
         uint8 statusCode;
         uint256 updatedTimestamp;
         address airline;
     }
+    //mapping[key=key, value=Flight struct]
     mapping(bytes32 => Flight) private flights;
+
+    //<--ORACLES-->
+    struct Oracle {
+        bool isRegistered;
+        uint8[3] indexes;
+    }
+    // Track all registered oracles
+    mapping(address => Oracle) private oracles;
+
+
+    //<--RESPONSE FROM ORACLES-->
+    // Model for responses from oracles
+    struct ResponseInfo {
+        address requester;                              // Account that requested status
+        bool isOpen;                                    // If open, oracle responses are accepted
+        mapping(uint8 => address[]) responses;          // Mapping key is the status code reported
+                                                        // This lets us group responses and identify
+                                                        // the response that majority of the oracles
+    }
+    // Track all oracle responses
+    // Key = hash(index, airline, flight, timestamp)
+    mapping(bytes32 => ResponseInfo) private oracleResponses;
 
 
     /********************************************************************************************/
@@ -88,10 +120,10 @@ contract FlightSuretyApp {
 
     function isOperational()
                             public
-                            pure
+                            view
                             returns(bool)
     {
-        return true;  // Modify to call data contract's status
+        return dataContract.isOperational();  // Modify to call data contract's status
     }
 
     /********************************************************************************************/
@@ -177,27 +209,6 @@ contract FlightSuretyApp {
     // Number of oracles that must respond for valid status
     uint256 private constant MIN_RESPONSES = 3;
 
-
-    struct Oracle {
-        bool isRegistered;
-        uint8[3] indexes;
-    }
-
-    // Track all registered oracles
-    mapping(address => Oracle) private oracles;
-
-    // Model for responses from oracles
-    struct ResponseInfo {
-        address requester;                              // Account that requested status
-        bool isOpen;                                    // If open, oracle responses are accepted
-        mapping(uint8 => address[]) responses;          // Mapping key is the status code reported
-                                                        // This lets us group responses and identify
-                                                        // the response that majority of the oracles
-    }
-
-    // Track all oracle responses
-    // Key = hash(index, flight, timestamp)
-    mapping(bytes32 => ResponseInfo) private oracleResponses;
 
     // Event fired each time an oracle submits a response
     event FlightStatusInfo(address airline, string flight, uint256 timestamp, uint8 status);
@@ -338,4 +349,6 @@ contract FlightSuretyApp {
 // endregion
 }
 
-contract FlightSuretyData{}
+contract FlightSuretyData{
+  function isOperational() external view returns(bool) {}
+}
