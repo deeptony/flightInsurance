@@ -28,11 +28,12 @@ contract FlightSuretyApp {
 
     //<--AIRLINES-->
     struct Airline{
-      bytes32 name;
+      address airline;
       bool isRegistered;
       bool isAuthorized;
     }
-    mapping(uint256 => Airline) airlines;
+    //using array because you can´t loop over a mapping
+    Airline[] private airlines;
 
     //<--FLIGHTS-->
     struct Flight {
@@ -66,6 +67,37 @@ contract FlightSuretyApp {
     // Key = hash(index, airline, flight, timestamp)
     mapping(bytes32 => ResponseInfo) private oracleResponses;
 
+    //track votes from airlines, for new airline Registration
+    //key = address of votee, value = number of votes in favour of votee
+    mapping(address => uint8) private votes;
+
+
+    /********************************************************************************************/
+    /*                                       CONSTRUCTOR                                        */
+    /********************************************************************************************/
+    FlightSuretyData dataContract;
+
+    /**
+    * @dev Contract constructor
+    *
+    */
+    constructor
+                                (
+                                  address dataContractAddress,
+                                  bytes32 firstAirline
+                                )
+                                public
+    {
+        contractOwner = msg.sender;
+        dataContract = FlightSuretyData(dataContractAddress);
+        //registering the first airline
+        Airline memory airline1;
+        airline1.airline = address(firstAirline);
+        airline1.isRegistered = true;
+        airline1.isAuthorized = true;
+        airlines.push(airline1);
+        //the first airline is now registered
+    }
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -95,23 +127,13 @@ contract FlightSuretyApp {
         _;
     }
 
-    /********************************************************************************************/
-    /*                                       CONSTRUCTOR                                        */
-    /********************************************************************************************/
-    FlightSuretyData dataContract;
-
-    /**
-    * @dev Contract constructor
-    *
-    */
-    constructor
-                                (
-                                  address dataContractAddress
-                                )
-                                public
+    //only existing airline can register another airline
+    modifier requireExistingAirline()
     {
-        contractOwner = msg.sender;
-        dataContract = FlightSuretyData(dataContractAddress);
+      for (uint i=0; i<airlines.length; i++ ){
+        require(msg.sender == airlines[i].airline, "Only registered airlines may call this function");
+      }
+      _;
     }
 
     /********************************************************************************************/
@@ -135,14 +157,42 @@ contract FlightSuretyApp {
     * @dev Add an airline to the registration queue
     *
     */
+    //this is a function that each registered airline calls to register a new one
     function registerAirline
                             (
+                              address newAirlineAddress
                             )
                             external
-                            pure
-                            returns(bool success, uint256 votes)
+                            requireExistingAirline()
+                            returns(bool success)
     {
-        return (success, 0);
+      //firstly require that the new airline is not already registered
+      for (uint i=0; i<airlines.length; i++){
+        require(airlines[i].airline != newAirlineAddress);
+      }
+      Airline memory newAirline;
+      if (airlines.length >= 5){
+        //multiparty consensus of more than 50% of registered airlines
+        //adding vote corresponding to Caller
+        votes[newAirlineAddress] = votes[newAirlineAddress] + 1;
+        if (votes[newAirlineAddress] > (airlines.length/2)){
+          newAirline.airline = newAirlineAddress;
+          newAirline.isRegistered = true;
+          newAirline.isAuthorized = false;
+          airlines.push(newAirline);
+          success = true;
+        } else {
+          success = false;
+        }
+      } else {
+        //airline may be registered by a previously registered airline
+        newAirline.airline = newAirlineAddress;
+        newAirline.isRegistered = true;
+        newAirline.isAuthorized = false;
+        airlines.push(newAirline);
+        success = true;
+      }
+      return (success);
     }
 
 
@@ -152,6 +202,7 @@ contract FlightSuretyApp {
     */
     function registerFlight
                                 (
+                                  bytes32 flightNumber
                                 )
                                 external
                                 pure

@@ -7,7 +7,9 @@ module.exports = function(deployer) {
     let firstAirline = '0xf17f52151EbEF6C7334FAD080c5704D77216b732';
     deployer.deploy(FlightSuretyData)
     .then(() => {
-        return deployer.deploy(FlightSuretyApp)
+        //first airline is registered on contract deployment
+        //passing in airline as a parameter of the deploy function (apparently this is how it´s done)
+        return deployer.deploy(FlightSuretyApp, FlightSuretyData.address, firstAirline)
                 .then(() => {
                     let config = {
                         localhost: {

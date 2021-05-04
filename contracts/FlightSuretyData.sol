@@ -16,6 +16,7 @@ contract FlightSuretyData {
 
     //<--AIRLINES-->
     struct Airline{
+      address airline;
       bytes32 name;
       bool isRegistered;
       bool isAuthorized;
