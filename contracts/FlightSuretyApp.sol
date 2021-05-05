@@ -70,6 +70,7 @@ contract FlightSuretyApp {
     //track votes from airlines, for new airline Registration
     //key = address of votee, value = number of votes in favour of votee
     mapping(address => uint8) private votes;
+    mapping(address => mapping(address => uint8)) counter;
 
 
     /********************************************************************************************/
@@ -136,6 +137,13 @@ contract FlightSuretyApp {
       _;
     }
 
+    modifier requireAuthorizedAirline(){
+      for (uint i=0; i<airlines.length; i++ ){
+        require(airlines[i].isAuthorized == true, "Only registered airlines may call this function");
+      }
+      _;
+    }
+
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
@@ -170,22 +178,27 @@ contract FlightSuretyApp {
       for (uint i=0; i<airlines.length; i++){
         require(airlines[i].airline != newAirlineAddress);
       }
+      //instantiating new airline struct
       Airline memory newAirline;
+      //require that the voter has not voted for this airline yet
+      require(counter[newAirlineAddress][msg.sender] != 1, "You have already voted for this airline");
       if (airlines.length >= 5){
         //multiparty consensus of more than 50% of registered airlines
         //adding vote corresponding to Caller
         votes[newAirlineAddress] = votes[newAirlineAddress] + 1;
+        //checking if more than half of airlines have approved the new airline
         if (votes[newAirlineAddress] > (airlines.length/2)){
           newAirline.airline = newAirlineAddress;
           newAirline.isRegistered = true;
           newAirline.isAuthorized = false;
           airlines.push(newAirline);
           success = true;
+          counter[newAirlineAddress][msg.sender] = counter[newAirlineAddress][msg.sender] + 1;
         } else {
           success = false;
         }
       } else {
-        //airline may be registered by a previously registered airline
+        //airline may be registered by a previously registered airline, since there are less than 5 airlines registered
         newAirline.airline = newAirlineAddress;
         newAirline.isRegistered = true;
         newAirline.isAuthorized = false;
@@ -195,6 +208,19 @@ contract FlightSuretyApp {
       return (success);
     }
 
+    //function to authorize airline, once the airline has been succesfully authorized
+    //the subject airline calls this function, to send 10 ether and thus get authorized
+    function authorizeAirline() public payable requireExistingAirline() returns(bool){
+      contractOwner.transfer(10 ether);
+      //looping through airlines array to find the airline that has succesfully transfered the 10eth
+      for (uint i=0; i<airlines.length; i++){
+        if (airlines[i].airline == msg.sender){
+          //authorizing airline to participate in contract
+          airlines[i].isAuthorized = true;
+        }
+      }
+
+    }
 
    /**
     * @dev Register a future flight for insuring.
@@ -205,8 +231,17 @@ contract FlightSuretyApp {
                                   bytes32 flightNumber
                                 )
                                 external
-                                pure
+                                requireContractOwner()
     {
+      //generating flight instance
+      Flight memory newFlight;
+      newFlight.isRegistered = true;
+      newFlight.statusCode = STATUS_CODE_UNKNOWN;
+      newFlight.updatedTimestamp = now;
+      newFlight.airline = airlines[1].airline;
+      //incorporating instance into mapping
+      flights[flightNumber] = newFlight;
+
 
     }
 
